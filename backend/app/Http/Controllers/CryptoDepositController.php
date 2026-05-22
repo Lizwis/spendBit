@@ -6,6 +6,8 @@ use App\Models\Deposit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
+use App\Services\WalletService;
+
 class CryptoDepositController extends Controller
 {
     public function store(Request $request)
@@ -144,6 +146,11 @@ class CryptoDepositController extends Controller
             'status' => 'confirmed',
         ]);
 
+
+
+        $walletService = new WalletService();
+        $walletService->credit($user, $amount);
+
         /**
          * =====================================
          * RESPONSE
@@ -180,6 +187,17 @@ class CryptoDepositController extends Controller
         return response()->json([
             'success' => true,
             'data' => $deposits
+        ]);
+    }
+
+
+    public function balance(Request $request)
+    {
+        $user = $request->user();
+
+        return response()->json([
+            'success' => true,
+            'balance' => $user->balance ?? 0
         ]);
     }
 }

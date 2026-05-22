@@ -28,6 +28,16 @@
 						<i class="bi bi-person-circle me-2"></i> Transactions
 					</router-link>
 				</li>
+
+				<li class="nav-item">
+					<router-link
+						class="nav-link text-white"
+						active-class="active"
+						to="/cards"
+					>
+						<i class="bi bi-person-circle me-2"></i> Cards
+					</router-link>
+				</li>
 			</ul>
 
 			<div class="mt-auto small text-white-50 pt-5">&copy; 2026 Spendbit</div>
