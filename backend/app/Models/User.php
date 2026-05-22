@@ -20,6 +20,10 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
 
+    public function deposits()
+    {
+        return $this->hasMany(Deposit::class);
+    }
 
 
     /**

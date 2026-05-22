@@ -1,35 +1,122 @@
 <template>
-	<div class="page">
-		<div class="card">
-			<h1>Crypto Deposit</h1>
+	<AuthLayout>
+		<div class="container py-4">
+			<div class="row justify-content-center">
+				<div class="col-lg-6">
+					<div class="card border-0 shadow-lg rounded-4">
+						<div class="card-body p-4">
+							<div class="text-center mb-4">
+								<h2 class="fw-bold mb-2">Crypto Deposit</h2>
 
-			<p>Deposit custom USDC token into treasury (Amoy)</p>
+								<p class="text-muted mb-0">
+									Deposit custom USDC token into treasury (Amoy)
+								</p>
+							</div>
 
-			<button @click="connectWallet" :disabled="connecting">
-				{{ wallet ? "Wallet Connected" : "Connect Wallet" }}
-			</button>
+							<!-- CONNECT BUTTON -->
+							<div class="d-grid mb-4">
+								<button
+									@click="connectWallet"
+									:disabled="connecting"
+									class="btn btn-primary btn-lg rounded-3"
+								>
+									<span v-if="connecting">
+										<span class="spinner-border spinner-border-sm me-2"></span>
+										Connecting...
+									</span>
 
-			<div v-if="wallet" class="info">
-				<p><strong>Wallet:</strong> {{ shortWallet }}</p>
-				<p><strong>Balance:</strong> {{ balance }}</p>
+									<span v-else>
+										{{ wallet ? "Wallet Connected" : "Connect Wallet" }}
+									</span>
+								</button>
+							</div>
+
+							<!-- WALLET INFO -->
+							<div v-if="wallet" class="bg-light border rounded-4 p-3 mb-4">
+								<div
+									class="d-flex justify-content-between align-items-center mb-2"
+								>
+									<span class="text-muted">Wallet</span>
+
+									<span class="fw-semibold">
+										{{ shortWallet }}
+									</span>
+								</div>
+
+								<div class="d-flex justify-content-between align-items-center">
+									<span class="text-muted">Balance</span>
+
+									<span class="fw-bold text-success">
+										{{ balance }}
+									</span>
+								</div>
+							</div>
+
+							<!-- DEPOSIT FORM -->
+							<div v-if="wallet">
+								<div class="mb-3">
+									<label class="form-label fw-semibold"> Token Amount </label>
+
+									<input
+										v-model="amount"
+										type="number"
+										class="form-control form-control-lg rounded-3"
+										placeholder="Enter amount"
+									/>
+								</div>
+
+								<div class="d-grid">
+									<button
+										@click="deposit"
+										:disabled="loading || !amount"
+										class="btn btn-success btn-lg rounded-3"
+									>
+										<span v-if="loading">
+											<span
+												class="spinner-border spinner-border-sm me-2"
+											></span>
+											Processing Transaction...
+										</span>
+
+										<span v-else> Deposit Tokens </span>
+									</button>
+								</div>
+							</div>
+
+							<!-- SUCCESS -->
+							<div
+								v-if="txHash"
+								class="alert alert-success mt-4 rounded-4 border-0"
+							>
+								<div class="fw-bold mb-2">✅ Transaction Successful</div>
+
+								<a
+									:href="scanUrl"
+									target="_blank"
+									class="btn btn-sm btn-outline-success"
+								>
+									View on PolygonScan
+								</a>
+							</div>
+
+							<!-- ERROR -->
+							<div
+								v-if="error"
+								class="alert alert-danger mt-4 rounded-4 border-0"
+							>
+								{{ error }}
+							</div>
+						</div>
+					</div>
+
+					<!-- FOOTER -->
+					<div class="text-center mt-3 text-muted small">
+						Powered by Polygon Amoy Testnet
+					</div>
+				</div>
 			</div>
-
-			<div v-if="wallet">
-				<input v-model="amount" type="number" placeholder="Token Amount" />
-
-				<button @click="deposit" :disabled="loading || !amount">
-					{{ loading ? "Processing..." : "Deposit" }}
-				</button>
-			</div>
-
-			<div v-if="txHash" class="success">
-				<p>Transaction Successful</p>
-				<a :href="scanUrl" target="_blank">View Tx</a>
-			</div>
-
-			<p v-if="error" class="error">{{ error }}</p>
 		</div>
-	</div>
+	</AuthLayout>
 </template>
 
 <script setup>
@@ -37,12 +124,11 @@
 	import { ethers } from "ethers";
 	import DepositApi from "../api/crypto/deposit";
 
-	/**
-	 * =========================
-	 * CONFIG (AMOY TESTNET)
-	 * =========================
-	 */
+	import AuthLayout from "../layouts/AuthLayout.vue";
 
+	/**
+	 * CONFIG
+	 */
 	const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS;
 
 	const TREASURY_WALLET = import.meta.env.VITE_TREASURY_WALLET;
@@ -153,7 +239,7 @@
 	}
 
 	/**
-	 * DEPOSIT FLOW (APPROVE + TRANSFER)
+	 * DEPOSIT FLOW
 	 */
 	async function deposit() {
 		try {
@@ -164,22 +250,24 @@
 			const contract = new ethers.Contract(TOKEN_ADDRESS, ABI, signer);
 
 			const decimals = await contract.decimals();
+
 			const value = ethers.parseUnits(amount.value.toString(), decimals);
 
 			/**
-			 * STEP 1: APPROVE
+			 * APPROVE
 			 */
-
 			const approveTx = await contract.approve(TREASURY_WALLET, value, {
 				maxFeePerGas: ethers.parseUnits("50", "gwei"),
 				maxPriorityFeePerGas: ethers.parseUnits("30", "gwei"),
 			});
+
 			await approveTx.wait();
 
 			/**
-			 * STEP 2: TRANSFER
+			 * TRANSFER
 			 */
 			const tx = await contract.transfer(TREASURY_WALLET, value);
+
 			await tx.wait();
 
 			txHash.value = tx.hash;
@@ -187,16 +275,17 @@
 			/**
 			 * BACKEND LOG
 			 */
-
 			await DepositApi.create({
 				tx_hash: tx.hash,
 				wallet: wallet.value,
 			});
 
 			await loadBalance();
+
 			amount.value = "";
 		} catch (e) {
 			console.error(e);
+
 			error.value =
 				e?.code === 4001 ? "Transaction rejected" : "Deposit failed";
 		} finally {
@@ -204,52 +293,3 @@
 		}
 	}
 </script>
-
-<style scoped>
-	.page {
-		height: 100vh;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		background: #f3f4f6;
-	}
-
-	.card {
-		width: 420px;
-		padding: 30px;
-		background: white;
-		border-radius: 16px;
-		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-	}
-
-	input {
-		width: 100%;
-		margin: 10px 0;
-		padding: 10px;
-	}
-
-	button {
-		width: 100%;
-		margin-top: 10px;
-		padding: 10px;
-	}
-
-	.info {
-		margin-top: 10px;
-		background: #f9fafb;
-		padding: 10px;
-		border-radius: 10px;
-	}
-
-	.success {
-		margin-top: 15px;
-		background: #ecfdf5;
-		padding: 10px;
-		border-radius: 10px;
-	}
-
-	.error {
-		color: red;
-		margin-top: 10px;
-	}
-</style>

@@ -14,4 +14,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/crypto/deposit', [CryptoDepositController::class, 'store']);
     Route::get('user', [AuthController::class, 'user']);
+    Route::post('logout', [AuthController::class, 'logout']);
 });

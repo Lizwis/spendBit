@@ -28,8 +28,8 @@ class CryptoDepositController extends Controller
          * INPUT
          * =====================================
          */
-        $txHash = strtolower($request->tx_hash);
-        $wallet = strtolower($request->wallet);
+        $txHash = strtolower(trim($request->tx_hash));
+        $wallet = strtolower(trim($request->wallet));
 
         if (!$txHash || !$wallet) {
             return response()->json([
@@ -39,18 +39,7 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * ENSURE WALLET MATCHES LOGGED USER
-         * =====================================
-         */
-        if (strtolower($user->wallet) !== $wallet) {
-            return response()->json([
-                'error' => 'Wallet does not match authenticated user'
-            ], 403);
-        }
-
-        /**
-         * =====================================
-         * PREVENT DUPLICATE TX PROCESSING
+         * PREVENT DUPLICATE TX (GLOBAL SAFETY)
          * =====================================
          */
         $exists = Deposit::where('tx_hash', $txHash)->exists();
@@ -63,18 +52,16 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * LOAD CONFIG FROM ENV
+         * CONFIG
          * =====================================
          */
         $rpcUrl = config('crypto.rpc_url');
-
         $tokenAddress = strtolower(config('crypto.token_address'));
-
         $treasury = strtolower(config('crypto.treasury_wallet'));
 
         /**
          * =====================================
-         * FETCH TX RECEIPT FROM CHAIN
+         * FETCH TX RECEIPT
          * =====================================
          */
         $rpcResponse = Http::post($rpcUrl, [
@@ -100,40 +87,31 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * VALIDATE ERC20 TRANSFER LOGS
+         * VALIDATE ERC20 TRANSFER
          * =====================================
          */
-        $logs = $receipt['logs'] ?? [];
-
         $valid = false;
-        $amountRaw = null;
+        $amountRaw = 0;
 
-        foreach ($logs as $log) {
+        foreach ($receipt['logs'] ?? [] as $log) {
 
             if (strtolower($log['address'] ?? '') !== $tokenAddress) {
                 continue;
             }
 
             $topics = $log['topics'] ?? [];
-            $data = $log['data'] ?? null;
 
             if (!isset($topics[2])) {
                 continue;
             }
 
-            /**
-             * Decode recipient address
-             */
             $to = '0x' . substr($topics[2], 26);
 
             if (strtolower($to) !== $treasury) {
                 continue;
             }
 
-            /**
-             * Amount in raw format
-             */
-            $amountRaw = hexdec($data);
+            $amountRaw = hexdec($log['data'] ?? '0x0');
             $valid = true;
             break;
         }
@@ -146,19 +124,19 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * CONVERT AMOUNT (6 DECIMALS USDC STYLE)
+         * CONVERT AMOUNT (USDC 6 DECIMALS)
          * =====================================
          */
         $amount = $amountRaw / 1000000;
 
         /**
          * =====================================
-         * STORE DEPOSIT (AUTH USER)
+         * STORE DEPOSIT (USER OWNERSHIP ONLY)
          * =====================================
          */
         $deposit = Deposit::create([
             'user_id' => $user->id,
-            'wallet' => $wallet,
+            'wallet' => $wallet, // metadata only
             'tx_hash' => $txHash,
             'amount' => $amount,
             'token_address' => $tokenAddress,
