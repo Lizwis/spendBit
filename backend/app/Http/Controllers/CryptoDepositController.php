@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deposit;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -11,18 +10,42 @@ class CryptoDepositController extends Controller
 {
     public function store(Request $request)
     {
-        $txHash = strtolower($request->tx_hash);
-        $wallet = strtolower($request->wallet);
+        /**
+         * =====================================
+         * AUTH CHECK (SANCTUM)
+         * =====================================
+         */
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'error' => 'Unauthenticated'
+            ], 401);
+        }
 
         /**
          * =====================================
-         * VALIDATE INPUT
+         * INPUT
          * =====================================
          */
+        $txHash = strtolower($request->tx_hash);
+        $wallet = strtolower($request->wallet);
+
         if (!$txHash || !$wallet) {
             return response()->json([
                 'error' => 'Missing data'
             ], 422);
+        }
+
+        /**
+         * =====================================
+         * ENSURE WALLET MATCHES LOGGED USER
+         * =====================================
+         */
+        if (strtolower($user->wallet) !== $wallet) {
+            return response()->json([
+                'error' => 'Wallet does not match authenticated user'
+            ], 403);
         }
 
         /**
@@ -45,17 +68,13 @@ class CryptoDepositController extends Controller
          */
         $rpcUrl = config('crypto.rpc_url');
 
-        $tokenAddress = strtolower(
-            config('crypto.token_address')
-        );
+        $tokenAddress = strtolower(config('crypto.token_address'));
 
-        $treasury = strtolower(
-            config('crypto.treasury_wallet')
-        );
+        $treasury = strtolower(config('crypto.treasury_wallet'));
 
         /**
          * =====================================
-         * FETCH TX RECEIPT FROM POLYGON
+         * FETCH TX RECEIPT FROM CHAIN
          * =====================================
          */
         $rpcResponse = Http::post($rpcUrl, [
@@ -67,11 +86,6 @@ class CryptoDepositController extends Controller
 
         $receipt = $rpcResponse['result'] ?? null;
 
-        /**
-         * =====================================
-         * VALIDATE RECEIPT
-         * =====================================
-         */
         if (!$receipt) {
             return response()->json([
                 'error' => 'Transaction not found'
@@ -107,22 +121,23 @@ class CryptoDepositController extends Controller
                 continue;
             }
 
+            /**
+             * Decode recipient address
+             */
             $to = '0x' . substr($topics[2], 26);
 
             if (strtolower($to) !== $treasury) {
                 continue;
             }
 
+            /**
+             * Amount in raw format
+             */
             $amountRaw = hexdec($data);
             $valid = true;
             break;
         }
 
-        /**
-         * =====================================
-         * INVALID TRANSFER
-         * =====================================
-         */
         if (!$valid) {
             return response()->json([
                 'error' => 'Invalid token transfer'
@@ -138,23 +153,7 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * LINK / CREATE USER BY WALLET
-         * =====================================
-         */
-        $user = User::where('wallet', $wallet)->first();
-
-        if (!$user) {
-            $user = User::create([
-                'wallet' => $wallet,
-                'name' => 'Web3 User',
-                'email' => $wallet . '@wallet.local',
-                'password' => bcrypt(str()->random(16)),
-            ]);
-        }
-
-        /**
-         * =====================================
-         * STORE VERIFIED DEPOSIT
+         * STORE DEPOSIT (AUTH USER)
          * =====================================
          */
         $deposit = Deposit::create([
