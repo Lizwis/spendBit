@@ -169,7 +169,11 @@
 			/**
 			 * STEP 1: APPROVE
 			 */
-			const approveTx = await contract.approve(TREASURY_WALLET, value);
+
+			const approveTx = await contract.approve(TREASURY_WALLET, value, {
+				maxFeePerGas: ethers.parseUnits("50", "gwei"),
+				maxPriorityFeePerGas: ethers.parseUnits("30", "gwei"),
+			});
 			await approveTx.wait();
 
 			/**

@@ -20,15 +20,7 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
 
-    public function ledgerEntries()
-    {
-        return $this->hasMany(LedgerEntry::class);
-    }
 
-    public function cryptoDeposits()
-    {
-        return $this->hasMany(CryptoDeposit::class);
-    }
 
     /**
      * Get the attributes that should be cast.
