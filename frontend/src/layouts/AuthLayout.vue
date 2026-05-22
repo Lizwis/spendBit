@@ -23,9 +23,9 @@
 					<router-link
 						class="nav-link text-white"
 						active-class="active"
-						to="/client/index"
+						to="/transaction/history"
 					>
-						<i class="bi bi-person-circle me-2"></i> Clients
+						<i class="bi bi-person-circle me-2"></i> Transactions
 					</router-link>
 				</li>
 			</ul>

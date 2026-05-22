@@ -4,4 +4,8 @@ export default {
 	create(data) {
 		return baseApi().post("/crypto/deposit", data);
 	},
+
+	history() {
+		return baseApi().get("/crypto/deposits");
+	},
 };

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import CryptoDeposit from "../views/CryptoDeposit.vue";
+import TransactionHistory from "../views/TransactionHistory.vue";
 
 import { useAuthStore } from "../stores/auth";
 import Login from "../views/auth/Login.vue";
@@ -26,6 +27,12 @@ const router = createRouter({
 			name: "deposit",
 			meta: { requiresAuth: true },
 			component: CryptoDeposit,
+		},
+		{
+			path: "/transaction/history",
+			name: "transactionHistory",
+			meta: { requiresAuth: true },
+			component: TransactionHistory,
 		},
 	],
 });

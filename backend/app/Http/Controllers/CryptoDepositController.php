@@ -160,4 +160,26 @@ class CryptoDepositController extends Controller
             'status' => 'confirmed',
         ]);
     }
+
+    public function history(Request $request)
+    {
+        $user = $request->user();
+
+        $deposits = Deposit::where('user_id', $user->id)
+            ->orderBy('id', 'desc')
+            ->get([
+                'id',
+                'tx_hash',
+                'amount',
+                'wallet',
+                'network',
+                'status',
+                'created_at'
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $deposits
+        ]);
+    }
 }
