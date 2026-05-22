@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deposit;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -95,49 +96,25 @@ class CryptoDepositController extends Controller
 
         foreach ($logs as $log) {
 
-            /**
-             * Ensure correct token contract
-             */
-            if (
-                strtolower($log['address'] ?? '') !== $tokenAddress
-            ) {
+            if (strtolower($log['address'] ?? '') !== $tokenAddress) {
                 continue;
             }
-
-            /**
-             * ERC20 Transfer event:
-             * Transfer(address,address,uint256)
-             */
 
             $topics = $log['topics'] ?? [];
             $data = $log['data'] ?? null;
 
-            /**
-             * Ensure recipient exists
-             */
             if (!isset($topics[2])) {
                 continue;
             }
 
-            /**
-             * Extract recipient address
-             */
             $to = '0x' . substr($topics[2], 26);
 
-            /**
-             * Ensure treasury wallet received tokens
-             */
             if (strtolower($to) !== $treasury) {
                 continue;
             }
 
-            /**
-             * Convert hex amount
-             */
             $amountRaw = hexdec($data);
-
             $valid = true;
-
             break;
         }
 
@@ -154,11 +131,26 @@ class CryptoDepositController extends Controller
 
         /**
          * =====================================
-         * TOKEN DECIMALS
+         * CONVERT AMOUNT (6 DECIMALS USDC STYLE)
          * =====================================
-         * Assuming 6 decimals like USDC
          */
         $amount = $amountRaw / 1000000;
+
+        /**
+         * =====================================
+         * LINK / CREATE USER BY WALLET
+         * =====================================
+         */
+        $user = User::where('wallet', $wallet)->first();
+
+        if (!$user) {
+            $user = User::create([
+                'wallet' => $wallet,
+                'name' => 'Web3 User',
+                'email' => $wallet . '@wallet.local',
+                'password' => bcrypt(str()->random(16)),
+            ]);
+        }
 
         /**
          * =====================================
@@ -166,6 +158,7 @@ class CryptoDepositController extends Controller
          * =====================================
          */
         $deposit = Deposit::create([
+            'user_id' => $user->id,
             'wallet' => $wallet,
             'tx_hash' => $txHash,
             'amount' => $amount,
@@ -185,6 +178,7 @@ class CryptoDepositController extends Controller
             'tx_hash' => $txHash,
             'wallet' => $wallet,
             'amount' => $amount,
+            'user_id' => $user->id,
             'network' => 'polygon-amoy',
             'status' => 'confirmed',
         ]);

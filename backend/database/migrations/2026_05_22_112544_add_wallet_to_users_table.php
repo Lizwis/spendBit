@@ -9,10 +9,10 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up()
+    public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->decimal('balance_usdc', 18, 6)->default(0);
+        Schema::table('users', function ($table) {
+            $table->string('wallet')->nullable()->unique();
         });
     }
 
