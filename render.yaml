@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: laravel-backend
+    runtime: docker
+    rootDir: backend
+    plan: free
