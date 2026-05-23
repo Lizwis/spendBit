@@ -5,6 +5,7 @@
 				<div class="col-lg-6">
 					<div class="card border-0 shadow-lg rounded-4">
 						<div class="card-body p-4">
+							<!-- HEADER -->
 							<div class="text-center mb-4">
 								<h2 class="fw-bold mb-2">Crypto Deposit</h2>
 
@@ -75,6 +76,7 @@
 											<span
 												class="spinner-border spinner-border-sm me-2"
 											></span>
+
 											Processing Transaction...
 										</span>
 
@@ -89,6 +91,13 @@
 								class="alert alert-success mt-4 rounded-4 border-0"
 							>
 								<div class="fw-bold mb-2">✅ Transaction Successful</div>
+
+								<div class="small mb-2">
+									Hash:
+									<span class="fw-semibold">
+										{{ txHash }}
+									</span>
+								</div>
 
 								<a
 									:href="scanUrl"
@@ -122,12 +131,14 @@
 <script setup>
 	import { ref, computed } from "vue";
 	import { ethers } from "ethers";
-	import DepositApi from "../api/crypto/deposit";
 
+	import DepositApi from "../api/crypto/deposit";
 	import AuthLayout from "../layouts/AuthLayout.vue";
 
 	/**
-	 * CONFIG
+	 * =====================================
+	 * ENV CONFIG
+	 * =====================================
 	 */
 	const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS;
 
@@ -136,17 +147,20 @@
 	const RPC_URL = import.meta.env.VITE_RPC_URL;
 
 	/**
+	 * =====================================
 	 * ERC20 ABI
+	 * =====================================
 	 */
 	const ABI = [
 		"function balanceOf(address) view returns (uint256)",
 		"function transfer(address to, uint256 amount) returns (bool)",
 		"function decimals() view returns (uint8)",
-		"function approve(address spender, uint256 amount) returns (bool)",
 	];
 
 	/**
+	 * =====================================
 	 * STATE
+	 * =====================================
 	 */
 	const wallet = ref("");
 	const balance = ref("0");
@@ -161,12 +175,16 @@
 	let signer = null;
 
 	/**
+	 * =====================================
 	 * READ PROVIDER
+	 * =====================================
 	 */
 	const readProvider = new ethers.JsonRpcProvider(RPC_URL);
 
 	/**
+	 * =====================================
 	 * HELPERS
+	 * =====================================
 	 */
 	const shortWallet = computed(() =>
 		wallet.value
@@ -179,7 +197,9 @@
 	);
 
 	/**
+	 * =====================================
 	 * CONNECT WALLET
+	 * =====================================
 	 */
 	async function connectWallet() {
 		try {
@@ -203,11 +223,13 @@
 			wallet.value = ethers.getAddress(accounts[0]);
 
 			provider = new ethers.BrowserProvider(window.ethereum);
+
 			signer = await provider.getSigner();
 
 			await loadBalance();
 		} catch (e) {
 			console.error(e);
+
 			error.value = "Wallet connection failed";
 		} finally {
 			connecting.value = false;
@@ -215,7 +237,9 @@
 	}
 
 	/**
+	 * =====================================
 	 * LOAD BALANCE
+	 * =====================================
 	 */
 	async function loadBalance() {
 		try {
@@ -234,60 +258,85 @@
 			balance.value = ethers.formatUnits(raw, decimals);
 		} catch (e) {
 			console.error(e);
+
 			error.value = "Balance load failed (RPC issue)";
 		}
 	}
 
 	/**
+	 * =====================================
 	 * DEPOSIT FLOW
+	 * =====================================
 	 */
 	async function deposit() {
 		try {
 			loading.value = true;
+
 			error.value = "";
 			txHash.value = "";
 
+			/**
+			 * Ensure wallet connected
+			 */
+			if (!signer) {
+				error.value = "Please connect wallet";
+				return;
+			}
+
 			const contract = new ethers.Contract(TOKEN_ADDRESS, ABI, signer);
 
+			/**
+			 * TOKEN DECIMALS
+			 */
 			const decimals = await contract.decimals();
 
+			/**
+			 * CONVERT USER INPUT
+			 */
 			const value = ethers.parseUnits(amount.value.toString(), decimals);
 
 			/**
-			 * APPROVE
+			 * DIRECT TOKEN TRANSFER
+			 * (NO APPROVE NEEDED)
 			 */
-			const approveTx = await contract.approve(TREASURY_WALLET, value, {
+			const tx = await contract.transfer(TREASURY_WALLET, value, {
 				maxFeePerGas: ethers.parseUnits("50", "gwei"),
+
 				maxPriorityFeePerGas: ethers.parseUnits("30", "gwei"),
 			});
 
-			await approveTx.wait();
-
 			/**
-			 * TRANSFER
+			 * WAIT FOR CONFIRMATION
 			 */
-			const tx = await contract.transfer(TREASURY_WALLET, value);
-
 			await tx.wait();
 
 			txHash.value = tx.hash;
 
 			/**
-			 * BACKEND LOG
+			 * SAVE VERIFIED TX TO BACKEND
 			 */
 			await DepositApi.create({
 				tx_hash: tx.hash,
 				wallet: wallet.value,
 			});
 
+			/**
+			 * REFRESH BALANCE
+			 */
 			await loadBalance();
 
+			/**
+			 * RESET FORM
+			 */
 			amount.value = "";
 		} catch (e) {
 			console.error(e);
 
-			error.value =
-				e?.code === 4001 ? "Transaction rejected" : "Deposit failed";
+			if (e?.code === 4001) {
+				error.value = "Transaction rejected";
+			} else {
+				error.value = e?.reason || e?.message || "Deposit failed";
+			}
 		} finally {
 			loading.value = false;
 		}
